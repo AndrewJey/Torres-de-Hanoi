@@ -1,0 +1,12 @@
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.exe.config
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\ProyectoHanoi.csprojResolveAssemblyReference.cache
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\TorresdeHanoi.torresHanoi.resources
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\TorresdeHanoi.frmMenuPrincipal.resources
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\TorresdeHanoi.frmDificultad.resources
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\TorresdeHanoi.Properties.Resources.resources
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\ProyectoHanoi.csproj.GenerateResource.Cache
+C:\Users\Carlos\Downloads\sharp1\sharp1\JCVDTorresdeHanoi\obj\Debug\TorresdeHanoi.frmMsg.resources

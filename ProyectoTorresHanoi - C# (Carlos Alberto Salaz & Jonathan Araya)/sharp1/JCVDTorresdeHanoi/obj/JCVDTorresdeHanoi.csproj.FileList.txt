@@ -1,0 +1,9 @@
+obj\Debug\ResolveAssemblyReference.cache
+obj\Debug\JCVDTorresdeHanoi.Form1.resources
+obj\Debug\JCVDTorresdeHanoi.Form2.resources
+obj\Debug\JCVDTorresdeHanoi.Properties.Resources.resources
+obj\Debug\JCVDTorresdeHanoi.csproj.GenerateResource.Cache
+bin\Debug\JCVDTorresdeHanoi.exe
+bin\Debug\JCVDTorresdeHanoi.pdb
+obj\Debug\JCVDTorresdeHanoi.exe
+obj\Debug\JCVDTorresdeHanoi.pdb

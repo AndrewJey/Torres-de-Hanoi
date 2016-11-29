@@ -1,0 +1,26 @@
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Form1.resources
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Form2.resources
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Properties.Resources.resources
+C:\Users\Franco\Downloads\posibles\JCVDTorresdeHanoi\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.csproj.GenerateResource.Cache
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.csprojResolveAssemblyReference.cache
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Form1.resources
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Form2.resources
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Properties.Resources.resources
+C:\Users\Franco\Downloads\posibles\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.csproj.GenerateResource.Cache
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.exe
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\bin\Debug\JCVDTorresdeHanoi.pdb
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.csprojResolveAssemblyReference.cache
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Form1.resources
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Form2.resources
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.Properties.Resources.resources
+C:\Users\Franco\Downloads\no borrar\sharp1\JCVDTorresdeHanoi\obj\Debug\JCVDTorresdeHanoi.csproj.GenerateResource.Cache

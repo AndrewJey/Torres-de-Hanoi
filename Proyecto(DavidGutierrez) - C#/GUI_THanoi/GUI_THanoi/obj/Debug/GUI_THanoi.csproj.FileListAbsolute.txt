@@ -1,0 +1,11 @@
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\bin\Debug\GUI_THanoi.exe.config
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\bin\Debug\GUI_THanoi.exe
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\bin\Debug\GUI_THanoi.pdb
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.csprojResolveAssemblyReference.cache
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.GUI_AcercaDelJuego.resources
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.GUI_Normas.resources
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.GUI_Principal.resources
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.Properties.Resources.resources
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.csproj.GenerateResource.Cache
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.exe
+c:\users\wsulivan\documents\visual studio 2015\Projects\GUI_THanoi\GUI_THanoi\obj\Debug\GUI_THanoi.pdb
