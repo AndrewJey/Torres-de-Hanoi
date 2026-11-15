@@ -77,7 +77,7 @@
         </DimensionLayout>
       </Layout>
       <SubComponents>
-        <Component class="org.edisoncor.gui.button.ButtonNice" name="btn_Jugar">
+        <Component class="javax.swing.JButton" name="btn_Jugar">
           <Properties>
             <Property name="text" type="java.lang.String" value="Jugar"/>
           </Properties>
@@ -85,7 +85,7 @@
             <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="btn_JugarActionPerformed"/>
           </Events>
         </Component>
-        <Component class="org.edisoncor.gui.button.ButtonNice" name="btn_Demo">
+        <Component class="javax.swing.JButton" name="btn_Demo">
           <Properties>
             <Property name="text" type="java.lang.String" value="Demo"/>
           </Properties>
@@ -93,11 +93,11 @@
             <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="btn_DemoActionPerformed"/>
           </Events>
         </Component>
-        <Container class="org.edisoncor.gui.panel.PanelCurves" name="panelCurves2">
+        <Container class="javax.swing.JPanel" name="panelCurves2">
 
           <Layout class="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout"/>
         </Container>
-        <Container class="org.edisoncor.gui.panel.PanelCurves" name="panelCurves3">
+        <Container class="javax.swing.JPanel" name="panelCurves3">
 
           <Layout class="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout"/>
         </Container>

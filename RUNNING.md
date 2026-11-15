@@ -32,20 +32,44 @@ Inventario y compilaciones locales del 2026-11-15. Una compilación correcta no 
 
 | Componente | Tipo / destino | Validación |
 | --- | --- | --- |
-| [Cris_Hellen - C#/TorresHanoi--/Torres de hanoi/JCVDTorresdeHanoi/ParadigmasHanoi.csproj](<Cris_Hellen - C#/TorresHanoi--/Torres de hanoi/JCVDTorresdeHanoi/ParadigmasHanoi.csproj>) | dotnet / v4.8.1 | Bloqueado: MSB3103 |
+| [Cris_Hellen - C#/TorresHanoi--/Torres de hanoi/JCVDTorresdeHanoi/ParadigmasHanoi.csproj](<Cris_Hellen - C#/TorresHanoi--/Torres de hanoi/JCVDTorresdeHanoi/ParadigmasHanoi.csproj>) | dotnet / v4.8.1 | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
 | [Cris_Hellen - C#/TorresHanoi--/Torres de hanoi/TorresdeHanoi.sln](<Cris_Hellen - C#/TorresHanoi--/Torres de hanoi/TorresdeHanoi.sln>) | solution | Sin ejecutar |
 | [Proyecto(DavidGutierrez) - C#/GUI_THanoi/GUI_THanoi.sln](<Proyecto(DavidGutierrez) - C#/GUI_THanoi/GUI_THanoi.sln>) | solution | Sin ejecutar |
-| [Proyecto(DavidGutierrez) - C#/GUI_THanoi/GUI_THanoi/GUI_THanoi.csproj](<Proyecto(DavidGutierrez) - C#/GUI_THanoi/GUI_THanoi/GUI_THanoi.csproj>) | dotnet / v4.8.1 | Compila; prueba funcional pendiente |
-| [ProyectoTorresDeHanoi - Java (Andrés Matta & Aarón Jara)/Torres-de-Hanoi-master/TorresDeHanoi/build.xml](<ProyectoTorresDeHanoi - Java (Andrés Matta & Aarón Jara)/Torres-de-Hanoi-master/TorresDeHanoi/build.xml>) | netbeans-ant / 1.8 | Compila; prueba funcional pendiente |
+| [Proyecto(DavidGutierrez) - C#/GUI_THanoi/GUI_THanoi/GUI_THanoi.csproj](<Proyecto(DavidGutierrez) - C#/GUI_THanoi/GUI_THanoi/GUI_THanoi.csproj>) | dotnet / v4.8.1 | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
+| [ProyectoTorresDeHanoi - Java (Andrés Matta & Aarón Jara)/Torres-de-Hanoi-master/TorresDeHanoi/build.xml](<ProyectoTorresDeHanoi - Java (Andrés Matta & Aarón Jara)/Torres-de-Hanoi-master/TorresDeHanoi/build.xml>) | netbeans-ant / 1.8 | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
 | [ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/Backup/JCVDTorresdeHanoi.sln](<ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/Backup/JCVDTorresdeHanoi.sln>) | solution | Sin ejecutar |
-| [ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/Backup/JCVDTorresdeHanoi/JCVDTorresdeHanoi.csproj](<ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/Backup/JCVDTorresdeHanoi/JCVDTorresdeHanoi.csproj>) | dotnet | Bloqueado: MSB3644 |
-| [ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/JCVDTorresdeHanoi/ProyectoHanoi.csproj](<ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/JCVDTorresdeHanoi/ProyectoHanoi.csproj>) | dotnet / v4.8.1 | Compila; prueba funcional pendiente |
+| [ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/Backup/JCVDTorresdeHanoi/JCVDTorresdeHanoi.csproj](<ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/Backup/JCVDTorresdeHanoi/JCVDTorresdeHanoi.csproj>) | dotnet | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
+| [ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/JCVDTorresdeHanoi/ProyectoHanoi.csproj](<ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/JCVDTorresdeHanoi/ProyectoHanoi.csproj>) | dotnet / v4.8.1 | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
 | [ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/TorresdeHanoi.sln](<ProyectoTorresHanoi - C# (Carlos Alberto Salaz & Jonathan Araya)/sharp1/TorresdeHanoi.sln>) | solution | Sin ejecutar |
-| [Proyecto_Torre_Hanoi_IA_2016 - Java (Arbay & Diego)/Proyecto_Torre_Hanoi_IA_2016-master/build.xml](<Proyecto_Torre_Hanoi_IA_2016 - Java (Arbay & Diego)/Proyecto_Torre_Hanoi_IA_2016-master/build.xml>) | netbeans-ant / 1.8 | Bloqueado: org.edisoncor.gui.button, org.edisoncor.gui.panel, torrehannoi |
+| [Proyecto_Torre_Hanoi_IA_2016 - Java (Arbay & Diego)/Proyecto_Torre_Hanoi_IA_2016-master/build.xml](<Proyecto_Torre_Hanoi_IA_2016 - Java (Arbay & Diego)/Proyecto_Torre_Hanoi_IA_2016-master/build.xml>) | netbeans-ant / 1.8 | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
 | [Torres-de-Hanoi-I.A. - C# (José Guerrero & José Carrillo)/TorreHanoi/TorreHanoi.sln](<Torres-de-Hanoi-I.A. - C# (José Guerrero & José Carrillo)/TorreHanoi/TorreHanoi.sln>) | solution | Sin ejecutar |
-| [Torres-de-Hanoi-I.A. - C# (José Guerrero & José Carrillo)/TorreHanoi/TorreHanoi/TorreHanoi.csproj](<Torres-de-Hanoi-I.A. - C# (José Guerrero & José Carrillo)/TorreHanoi/TorreHanoi/TorreHanoi.csproj>) | dotnet / v4.8.1 | Compila; prueba funcional pendiente |
+| [Torres-de-Hanoi-I.A. - C# (José Guerrero & José Carrillo)/TorreHanoi/TorreHanoi/TorreHanoi.csproj](<Torres-de-Hanoi-I.A. - C# (José Guerrero & José Carrillo)/TorreHanoi/TorreHanoi/TorreHanoi.csproj>) | dotnet / v4.8.1 | Compila; comprobado el 2026-11-15; ver alcance actualizado abajo |
 
 ## Archivos ignorados
 
 `.gitignore` excluye credenciales locales, estado del editor y salidas de las herramientas detectadas. No deja de versionar archivos que ya estaban en Git. Los manifiestos, archivos de bloqueo, recursos fuente y scripts de esquema forman parte del código.
 <!-- local-development:end -->
+
+<!-- build-repairs-20261115:start -->
+## Reparación y comprobación — 2026-11-15
+
+- La variante Java utiliza controles Swing estándar y una demostración recursiva de tres discos, en lugar de Edisoncor y una clase Demo ausente.
+- Se corrigieron recursos gráficos y referencias de Framework de variantes C#, incluida la copia Backup.
+
+Comprobado:
+
+- Compilan las dos variantes Java y las cinco variantes C#.
+- Se construyeron los formularios de las cinco variantes C# y se cargaron sus recursos.
+
+Comandos:
+
+```powershell
+Java: .\build-local.ps1; elige -Project para ejecutar una variante.
+C#: abre la solución de la variante en Visual Studio 2022.
+```
+
+Alcance pendiente:
+
+- No se verificó exhaustivamente el juego y todas las animaciones de cada variante.
+
+<!-- build-repairs-20261115:end -->

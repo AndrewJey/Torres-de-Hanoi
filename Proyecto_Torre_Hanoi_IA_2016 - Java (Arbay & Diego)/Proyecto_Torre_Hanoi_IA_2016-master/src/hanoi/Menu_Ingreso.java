@@ -4,7 +4,7 @@
  * and open the template in the editor.
  */
 package hanoi;
-import torrehannoi.*;
+
 /**
  *
  * @author DF-Sistemas
@@ -29,10 +29,10 @@ public class Menu_Ingreso extends javax.swing.JFrame {
     private void initComponents() {
 
         jPanel1 = new javax.swing.JPanel();
-        btn_Jugar = new org.edisoncor.gui.button.ButtonNice();
-        btn_Demo = new org.edisoncor.gui.button.ButtonNice();
-        panelCurves2 = new org.edisoncor.gui.panel.PanelCurves();
-        panelCurves3 = new org.edisoncor.gui.panel.PanelCurves();
+        btn_Jugar = new javax.swing.JButton();
+        btn_Demo = new javax.swing.JButton();
+        panelCurves2 = new javax.swing.JPanel();
+        panelCurves3 = new javax.swing.JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -102,14 +102,20 @@ public class Menu_Ingreso extends javax.swing.JFrame {
     }//GEN-LAST:event_btn_JugarActionPerformed
 
     private void btn_DemoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_DemoActionPerformed
-        String[] args = null;
-        torrehannoi.Demo.main(args);
+        javax.swing.JOptionPane.showMessageDialog(this, resolverDemo(3, "A", "C", "B"), "Demostración de tres discos", javax.swing.JOptionPane.INFORMATION_MESSAGE);
 //        demo.getClass();
     }//GEN-LAST:event_btn_DemoActionPerformed
 
     /**
      * @param args the command line arguments
      */
+    private static String resolverDemo(int discos, String origen, String destino, String auxiliar) {
+        if (discos == 0) return "";
+        return resolverDemo(discos - 1, origen, auxiliar, destino)
+                + "Disco " + discos + ": " + origen + " → " + destino + "\n"
+                + resolverDemo(discos - 1, auxiliar, destino, origen);
+    }
+
     public static void main(String args[]) {
         /* Set the Nimbus look and feel */
         //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
@@ -143,10 +149,10 @@ public class Menu_Ingreso extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private org.edisoncor.gui.button.ButtonNice btn_Demo;
-    private org.edisoncor.gui.button.ButtonNice btn_Jugar;
+    private javax.swing.JButton btn_Demo;
+    private javax.swing.JButton btn_Jugar;
     private javax.swing.JPanel jPanel1;
-    private org.edisoncor.gui.panel.PanelCurves panelCurves2;
-    private org.edisoncor.gui.panel.PanelCurves panelCurves3;
+    private javax.swing.JPanel panelCurves2;
+    private javax.swing.JPanel panelCurves3;
     // End of variables declaration//GEN-END:variables
 }
