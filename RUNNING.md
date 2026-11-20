@@ -10,7 +10,7 @@ Puedes abrir este repositorio en VS Code, Antigravity o Sublime Text. El compila
 En NetBeans 25, abre la carpeta que contiene `build.xml` como proyecto Ant. Selecciona un JDK igual o posterior al nivel de fuente del proyecto; las compilaciones de esta revisión usan JDK 24.0.2. El asistente busca NetBeans y el JDK y mantiene la configuración de usuario en `.local-build/`.
 
 ```powershell
-.uild-local.ps1
+.\build-local.ps1
 .\build-local.ps1 -Project 'ProyectoTorresDeHanoi - Java (Andrés Matta & Aarón Jara)/Torres-de-Hanoi-master/TorresDeHanoi/build.xml' -Target run
 ```
 
@@ -73,3 +73,11 @@ Alcance pendiente:
 - No se verificó exhaustivamente el juego y todas las animaciones de cada variante.
 
 <!-- build-repairs-20261115:end -->
+
+<!-- improvements-20261119:start -->
+## Mejoras y verificación — 2026-11-19 (Motor limpio `HanoiEngine`, corrección de índices y renderizado sin parpadeo)
+
+- Corregidos los errores `TorreA[AnillosB - 1]` / `TorreA[AnillosC - 1]`, fugas de `SolidBrush` en `MouseMove` y parpadeo de `this.Refresh()`.
+- Extraído `HanoiEngine` con validación de reglas, cálculo de mínimo óptimo `2^n - 1` y solucionador recursivo animado por `Timer` (reemplazando >1400 líneas duplicadas con `Thread.Sleep`).
+- Validación: compilación MSBuild y verificación paso a paso del solucionador óptimo para 3, 4, 5 y 8 discos (339 aserciones).
+<!-- improvements-20261119:end -->

@@ -1,1734 +1,458 @@
-
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
-using System.Windows.Forms;
-using System.Threading;
 using System.Diagnostics;
-
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Reflection;
+using System.Windows.Forms;
 
 namespace TorresdeHanoi
 {
+    public struct HanoiMove
+    {
+        public int From { get; }
+        public int To { get; }
+
+        public HanoiMove(int from, int to)
+        {
+            From = from;
+            To = to;
+        }
+    }
+
+    public class HanoiEngine
+    {
+        private readonly Stack<int>[] _pegs = { new Stack<int>(), new Stack<int>(), new Stack<int>() };
+
+        public int DiskCount { get; private set; }
+        public int Moves { get; private set; }
+        public int MinimumMoves => (1 << DiskCount) - 1;
+        public bool IsSolved => _pegs[2].Count == DiskCount && DiskCount > 0;
+
+        public HanoiEngine(int diskCount = 3)
+        {
+            Reset(diskCount);
+        }
+
+        public void Reset(int diskCount)
+        {
+            if (diskCount < 1 || diskCount > 10)
+            {
+                throw new ArgumentOutOfRangeException(nameof(diskCount), "El número de discos debe estar entre 1 y 10.");
+            }
+
+            DiskCount = diskCount;
+            Moves = 0;
+            for (int i = 0; i < 3; i++)
+            {
+                _pegs[i].Clear();
+            }
+
+            for (int d = diskCount; d >= 1; d--)
+            {
+                _pegs[0].Push(d);
+            }
+        }
+
+        public int[] GetPegDisksBottomToTop(int pegIndex)
+        {
+            if (pegIndex < 0 || pegIndex > 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pegIndex));
+            }
+
+            int[] arr = _pegs[pegIndex].ToArray();
+            Array.Reverse(arr);
+            return arr;
+        }
+
+        public int PeekTop(int pegIndex)
+        {
+            if (pegIndex < 0 || pegIndex > 2 || _pegs[pegIndex].Count == 0)
+            {
+                return 0;
+            }
+            return _pegs[pegIndex].Peek();
+        }
+
+        public bool CanMove(int fromPeg, int toPeg)
+        {
+            if (fromPeg < 0 || fromPeg > 2 || toPeg < 0 || toPeg > 2 || fromPeg == toPeg)
+            {
+                return false;
+            }
+            if (_pegs[fromPeg].Count == 0)
+            {
+                return false;
+            }
+            if (_pegs[toPeg].Count == 0)
+            {
+                return true;
+            }
+            return _pegs[fromPeg].Peek() < _pegs[toPeg].Peek();
+        }
+
+        public bool TryMove(int fromPeg, int toPeg)
+        {
+            if (!CanMove(fromPeg, toPeg))
+            {
+                return false;
+            }
+
+            int disk = _pegs[fromPeg].Pop();
+            _pegs[toPeg].Push(disk);
+            Moves++;
+            return true;
+        }
+
+        public static List<HanoiMove> ComputeOptimalMoves(int diskCount, int from = 0, int aux = 1, int to = 2)
+        {
+            var moves = new List<HanoiMove>();
+            BuildMoves(diskCount, from, aux, to, moves);
+            return moves;
+        }
+
+        private static void BuildMoves(int n, int from, int aux, int to, List<HanoiMove> moves)
+        {
+            if (n <= 0) return;
+            BuildMoves(n - 1, from, to, aux, moves);
+            moves.Add(new HanoiMove(from, to));
+            BuildMoves(n - 1, aux, from, to, moves);
+        }
+    }
+
     public partial class torresHanoi : Form
     {
-        private bool Jugar = false;// se crea uan variable que se rellena con el valor si se esta jugando
-        private int finalA, finalB, finalC; //se declaran las variables que "sellan" la torre
-        public int Intentos, NumAnillos, intentosMin; //se crean las variables que cuentan los intentos, los anillos que deben usarse y el numero minimo de intentos que debe realizar
-        private int[] TorreA, TorreB, TorreC; // se utilizan vectores para las torres que estas cargan los anillos
-        private int AnillosA, AnillosB, AnillosC;//de crean las variables anillos para validar si se cumplen las reglas del juego
-        private bool intA, intB, intC;
-        private int posx;
-        int comp = 0;
-        int comp2 = 0;
-        Color color;
-        Graphics crear;
-        Stopwatch cronos = new Stopwatch();
+        private static readonly Color[] DiskPalette =
+        {
+            Color.Coral,
+            Color.SaddleBrown,
+            Color.BlueViolet,
+            Color.DarkBlue,
+            Color.DarkRed,
+            Color.Gold,
+            Color.WhiteSmoke,
+            Color.CadetBlue,
+            Color.MediumSeaGreen,
+            Color.SlateBlue
+        };
+
+        private static readonly int[] PegCentersX = { 90, 250, 410 };
+
+        private readonly HanoiEngine _engine = new HanoiEngine(3);
+        private readonly Stopwatch _cronos = new Stopwatch();
+        private readonly System.Windows.Forms.Timer _demoTimer = new System.Windows.Forms.Timer();
+        private Queue<HanoiMove> _demoQueue = new Queue<HanoiMove>();
+
+        private bool _jugar;
+        private bool _pausado;
+        private int _draggingPeg = -1;
+        private Point _dragPoint;
+
+        public int Intentos => _engine.Moves;
+        public int NumAnillos => _engine.DiskCount;
+        public int intentosMin => _engine.MinimumMoves;
 
         public torresHanoi()
         {
             InitializeComponent();
-            crear = juego.CreateGraphics();
+            this.DoubleBuffered = true;
+            EnableDoubleBuffering(juego);
+
+            _demoTimer.Interval = 320;
+            _demoTimer.Tick += DemoTimer_Tick;
+
+            if (cbx_nivel.Items.Count > 0 && cbx_nivel.SelectedIndex < 0)
+            {
+                cbx_nivel.SelectedIndex = 0;
+            }
+
+            panel_menu.Visible = true;
+            panel_juego.Visible = false;
         }
 
-        //Al presionar click que valide el anillo y el movimiento que se ejecuta
+        private static void EnableDoubleBuffering(Control control)
+        {
+            PropertyInfo prop = typeof(Control).GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (prop != null)
+            {
+                prop.SetValue(control, true, null);
+            }
+        }
+
+        private int ResolveSelectedDisks()
+        {
+            int parsed;
+            if (int.TryParse((cbx_nivel.Text ?? string.Empty).Trim(), out parsed) && parsed >= 3 && parsed <= 8)
+            {
+                return parsed;
+            }
+
+            if (cbx_nivel.SelectedIndex >= 0)
+            {
+                return Math.Max(3, Math.Min(8, cbx_nivel.SelectedIndex + 3));
+            }
+
+            return 3;
+        }
+
+        private static int HitTestPeg(int x)
+        {
+            if (x < 170) return 0;
+            if (x < 330) return 1;
+            return 2;
+        }
+
+        private void StartSession(bool demoMode)
+        {
+            _demoTimer.Stop();
+            _demoQueue.Clear();
+            _draggingPeg = -1;
+            _pausado = false;
+            btnPausa.Text = "Pausa";
+
+            int disks = ResolveSelectedDisks();
+            _engine.Reset(disks);
+            lb_nivel.Text = disks.ToString();
+            lblIntentos2.Text = "0";
+            lblIntentos3.Text = "00:00";
+
+            panel_menu.Visible = false;
+            panel_juego.Visible = true;
+
+            _cronos.Reset();
+            _cronos.Start();
+            timer1.Start();
+
+            if (demoMode)
+            {
+                _jugar = false;
+                _demoQueue = new Queue<HanoiMove>(HanoiEngine.ComputeOptimalMoves(disks));
+                _demoTimer.Start();
+            }
+            else
+            {
+                _jugar = true;
+            }
+
+            juego.Invalidate();
+        }
+
+        private void DemoTimer_Tick(object sender, EventArgs e)
+        {
+            if (_demoQueue.Count == 0)
+            {
+                _demoTimer.Stop();
+                timer1.Stop();
+                _cronos.Stop();
+                juego.Invalidate();
+                MessageBox.Show(
+                    this,
+                    string.Format("Demostración completada en {0} movimientos óptimos.", _engine.Moves),
+                    "Torres de Hanoi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            HanoiMove step = _demoQueue.Dequeue();
+            _engine.TryMove(step.From, step.To);
+            lblIntentos2.Text = _engine.Moves.ToString();
+            juego.Invalidate();
+        }
+
         private void panel1_MouseDown(object sender, MouseEventArgs e)
         {
-            if ((e.X >= 0 & e.X <= 170) & (finalA != 0)) { intA = true; intB = false; intC = false; }
-            if ((e.X > 170 & e.X <= 330) & (finalB != 0)) { intB = true; intA = false; intC = false; }
-            if ((e.X > 330 & e.X <= 500) & (finalC != 0)) { intC = true; intA = false; intB = false; }
+            if (!_jugar || _pausado)
+            {
+                return;
+            }
+
+            int peg = HitTestPeg(e.X);
+            if (_engine.PeekTop(peg) != 0)
+            {
+                _draggingPeg = peg;
+                _dragPoint = e.Location;
+                juego.Invalidate();
+            }
         }
 
-        //Al mover el mouse hacia las torres, que utilice la funcion del sistema "Refresh" para que dibuje el anillo que se mueve
         private void panel1_MouseMove(object sender, MouseEventArgs e)
         {
-            if (intA | intB | intC) { this.Refresh(); }
-
-            if (intA)
+            if (_draggingPeg < 0)
             {
-                crear.FillRectangle(new SolidBrush(Color.LightCoral), 90 - (TorreA[AnillosA - 1] * 10), 210 - ((AnillosA - 1) * 20), 20 * TorreA[AnillosA - 1], 20);
-                crear.FillRectangle(new SolidBrush(Color.Azure), 85, 210 - ((AnillosA - 1) * 20), 10, 20);// se dibuja el anillo en movimiento y se cambia el color
-                int x = e.X - (10 * TorreA[AnillosA - 1]);
-                int y = e.Y - 10;
-                crear.FillRectangle(new SolidBrush(Color.Black), x, y, 20 * TorreA[AnillosA - 1], 20);
-
-                if (TorreA[AnillosA - 1] == 1) { color = Color.Coral; }
-                if (TorreA[AnillosA - 1] == 2) { color = Color.Brown; }
-                if (TorreA[AnillosA - 1] == 3) { color = Color.BlueViolet; }
-                if (TorreA[AnillosA - 1] == 4) { color = Color.DarkBlue; }
-                if (TorreA[AnillosA - 1] == 5) { color = Color.DarkRed; }
-                if (TorreA[AnillosA - 1] == 6) { color = Color.Yellow; }
-                if (TorreA[AnillosA - 1] == 7) { color = Color.White; }
-                if (TorreA[AnillosA - 1] == 8) { color = Color.CadetBlue; }
-                crear.FillRectangle(new SolidBrush(color), x + 2, y + 2, (20 * TorreA[AnillosA - 1]) - 4, 16);
+                return;
             }
-            if (intB)
-            {
-                crear.FillRectangle(new SolidBrush(Color.LightCoral), 250 - (TorreB[AnillosB - 1] * 10), 210 - ((AnillosB - 1) * 20), 20 * TorreB[AnillosB - 1], 20);
-                crear.FillRectangle(new SolidBrush(Color.Brown), 245, 210 - ((AnillosB - 1) * 20), 10, 20);
-                int x = e.X - (10 * TorreB[AnillosB - 1]);
-                int y = e.Y - 10;
-                crear.FillRectangle(new SolidBrush(Color.Black), x, y, 20 * TorreB[AnillosB - 1], 20);
 
-                if (TorreB[AnillosB - 1] == 1) { color = Color.Coral; }
-                if (TorreB[AnillosB - 1] == 2) { color = Color.Brown; }
-                if (TorreB[AnillosB - 1] == 3) { color = Color.BlueViolet; }
-                if (TorreB[AnillosB - 1] == 4) { color = Color.DarkBlue; }
-                if (TorreB[AnillosB - 1] == 5) { color = Color.DarkRed; }
-                if (TorreB[AnillosB - 1] == 6) { color = Color.Yellow; }
-                if (TorreB[AnillosB - 1] == 7) { color = Color.White; }
-                if (TorreA[AnillosB - 1] == 8) { color = Color.CadetBlue; }
-                crear.FillRectangle(new SolidBrush(color), x + 2, y + 2, (20 * TorreB[AnillosB - 1]) - 4, 16);
-            }
-            if (intC)
-            {
-                crear.FillRectangle(new SolidBrush(Color.LightCoral), 410 - (TorreC[AnillosC - 1] * 10), 210 - ((AnillosC - 1) * 20), 20 * TorreC[AnillosC - 1], 20);
-                crear.FillRectangle(new SolidBrush(Color.Brown), 405, 210 - ((AnillosC - 1) * 20), 10, 20);
-                int x = e.X - (10 * TorreC[AnillosC - 1]);
-                int y = e.Y - 10;
-                crear.FillRectangle(new SolidBrush(Color.Black), x, y, 20 * TorreC[AnillosC - 1], 20);
-
-                if (TorreC[AnillosC - 1] == 1) { color = Color.Coral; }
-                if (TorreC[AnillosC - 1] == 2) { color = Color.Brown; }
-                if (TorreC[AnillosC - 1] == 3) { color = Color.BlueViolet; }
-                if (TorreC[AnillosC - 1] == 4) { color = Color.DarkBlue; }
-                if (TorreC[AnillosC - 1] == 5) { color = Color.DarkRed; }
-                if (TorreC[AnillosC - 1] == 6) { color = Color.Yellow; }
-                if (TorreC[AnillosC - 1] == 7) { color = Color.White; }
-                if (TorreA[AnillosC - 1] == 8) { color = Color.CadetBlue; }
-                crear.FillRectangle(new SolidBrush(color), x + 2, y + 2, (20 * TorreC[AnillosC - 1]) - 4, 16);
-            }
+            _dragPoint = e.Location;
+            juego.Invalidate();
         }
 
-        //Al soltar click que valide si el anillo se coloca donde corresponde
         private void panel1_MouseUp(object sender, MouseEventArgs e)
         {
-            if ((e.X >= 0 & e.X <= 170) & intB & ((finalB < finalA) | finalA == 0))
+            if (_draggingPeg < 0)
             {
-                finalA = finalB;
-                TorreA[AnillosA] = finalB;
-                if (AnillosB > 1)
-                { finalB = TorreB[AnillosB - 2]; }
-                else
-                { finalB = TorreB[AnillosB]; }
-                TorreB[AnillosB - 1] = 0;
-                AnillosA++;
-                AnillosB--;
-                Intentos++;
+                return;
             }
-            if ((e.X >= 0 & e.X <= 170) & intC & ((finalC < finalA) | finalA == 0))
-            {
-                finalA = finalC;
-                TorreA[AnillosA] = finalC;
-                if (AnillosC > 1)
-                { finalC = TorreC[AnillosC - 2]; }
-                else
-                { finalC = TorreC[AnillosC]; }
-                TorreC[AnillosC - 1] = 0;
-                AnillosA++;
-                AnillosC--;
-                Intentos++;
-            }
-            if ((e.X > 170 & e.X <= 330) & intA & ((finalA < finalB) | finalB == 0))
-            {
-                finalB = finalA;
-                TorreB[AnillosB] = finalA;
-                if (AnillosA > 1)
-                { finalA = TorreA[AnillosA - 2]; }
-                else
-                { finalA = TorreA[AnillosA]; }
-                TorreA[AnillosA - 1] = 0;
-                AnillosB++;
-                AnillosA--;
-                Intentos++;
-            }
-            if ((e.X > 170 & e.X <= 330) & intC & ((finalC < finalB) | finalB == 0))
-            {
-                finalB = finalC;
-                TorreB[AnillosB] = finalC;
-                if (AnillosC > 1)
-                { finalC = TorreC[AnillosC - 2]; }
-                else
-                { finalC = TorreC[AnillosC]; }
-                TorreC[AnillosC - 1] = 0;
-                AnillosB++;
-                AnillosC--;
-                Intentos++;
-            }
-            if ((e.X > 330 & e.X <= 500) & intA & ((finalA < finalC) | finalC == 0))
-            {
-                finalC = finalA;
-                TorreC[AnillosC] = finalA;
-                if (AnillosA > 1)
-                { finalA = TorreA[AnillosA - 2]; }
-                else
-                { finalA = TorreA[AnillosA]; }
-                TorreA[AnillosA - 1] = 0;
-                AnillosC++;
-                AnillosA--;
-                Intentos++;
-            }
-            if ((e.X > 330 & e.X <= 5000) & intB & ((finalB < finalC) | finalC == 0))
-            {
-                finalC = finalB;
-                TorreC[AnillosC] = finalB;
-                if (AnillosB > 1)
-                { finalB = TorreB[AnillosB - 2]; }
-                else
-                { finalB = TorreB[AnillosB]; }
-                TorreB[AnillosB - 1] = 0;
-                AnillosC++;
-                AnillosB--;
-                Intentos++;
-            }
-            intA = false; intB = false; intC = false;
-            this.Refresh();
-            lblIntentos2.Text = Intentos.ToString();
-            if ((TorreC[NumAnillos - 1] == 1) & Jugar)
-            {
-                timer1.Stop();
-                intentosMin = 0;
-                for (int n = 1; n <= NumAnillos; n++)
-                { intentosMin = (intentosMin * 2) + 1; }
-                if (Intentos > intentosMin)
-                {//muestra un mensaje diciendo que ha ganado pero en un numero mayor de intentos a lo esperado
-                    string mejor = "Felicidades";
-                    MessageBoxButtons buttons = MessageBoxButtons.OK;
-                    DialogResult result;
-                    string mensaje = "Lo lograste en un tiempo de: " + this.lblIntentos3.Text + " con " + this.lblIntentos2.Text + " intentos ";
-                    // Muestra el mensaje de ganador
 
-                    result = MessageBox.Show(mensaje, mejor, buttons);
+            int sourcePeg = _draggingPeg;
+            _draggingPeg = -1;
 
-                    var resultado = (MessageBox.Show("Desea salir", "Advertencia", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
-                    if (resultado == DialogResult.Yes)
-                    {
-                        this.Close();
+            int targetPeg = HitTestPeg(e.X);
+            if (_engine.TryMove(sourcePeg, targetPeg))
+            {
+                lblIntentos2.Text = _engine.Moves.ToString();
+                juego.Invalidate();
 
-                    }
-                    if (resultado == DialogResult.No)
-                    {
-                        panel_juego.Visible = false;
-                        panel_menu.Visible = true;
-                    }
-                }
-                else
+                if (_jugar && _engine.IsSolved)
                 {
-                    MessageBox.Show("Lo lograste en la cantidad minima de intentos: " + this.lblIntentos2.Text, "Felicidades",
-                        MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-                    var resultado = (MessageBox.Show("Desea salir", "Advertencia", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
-                    if (resultado == DialogResult.Yes)
-                    {
-                        this.Close();
-                    }
-                    if (resultado == DialogResult.No)
-                    {
-                        panel_juego.Visible = false;
-                        panel_menu.Visible = true;
-                    }
+                    _jugar = false;
+                    timer1.Stop();
+                    _cronos.Stop();
 
+                    string msg = _engine.Moves == _engine.MinimumMoves
+                        ? string.Format("¡Perfecto! Lo lograste en {0} con el mínimo de {1} intentos.", lblIntentos3.Text, _engine.Moves)
+                        : string.Format("¡Felicidades! Lo lograste en {0} con {1} intentos (mínimo óptimo: {2}).", lblIntentos3.Text, _engine.Moves, _engine.MinimumMoves);
+                    MessageBox.Show(this, msg, "¡Ganaste!", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-                this.Refresh();
-                Jugar = false;
+            }
+            else
+            {
+                juego.Invalidate();
             }
         }
 
-        //se encarga de dibujar las torres y los anillos
-        public void dibuja()
-        {
-            crear.FillRectangle(new SolidBrush(Color.LightGray), 0, 0, 500, 250);
-            //Torre A
-            crear.FillRectangle(new SolidBrush(Color.DarkGray), 20, 230, 140, 20);
-            crear.FillRectangle(new SolidBrush(Color.DarkGray), 85, 30, 10, 210);
-            //Torre B
-            crear.FillRectangle(new SolidBrush(Color.Gray), 180, 230, 140, 20);
-            crear.FillRectangle(new SolidBrush(Color.Gray), 245, 30, 10, 210);
-            //TorreC
-            crear.FillRectangle(new SolidBrush(Color.DimGray), 340, 230, 140, 20);
-            crear.FillRectangle(new SolidBrush(Color.DimGray), 405, 30, 10, 210);
-
-            for (int a = 0; a < NumAnillos; a++)
-            {
-                crear.FillRectangle(new SolidBrush(Color.Black), 90 - (TorreA[a] * 10), 210 - (a * 20), 20 * TorreA[a], 20);
-                crear.FillRectangle(new SolidBrush(Color.Black), 250 - (TorreB[a] * 10), 210 - (a * 20), 20 * TorreB[a], 20);
-                crear.FillRectangle(new SolidBrush(Color.Black), 410 - (TorreC[a] * 10), 210 - (a * 20), 20 * TorreC[a], 20);
-
-                if (TorreA[a] == 1 | TorreB[a] == 1 | TorreC[a] == 1)
-                {
-                    if (TorreA[a] == 1) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 1) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 1) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.LightBlue), posx, 212 - (a * 20), 16, 16);
-                }
-                if (TorreA[a] == 2 | TorreB[a] == 2 | TorreC[a] == 2)
-                {
-                    if (TorreA[a] == 2) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 2) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 2) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.LightGreen), posx, 212 - (a * 20), 36, 16);
-                }
-                if (TorreA[a] == 3 | TorreB[a] == 3 | TorreC[a] == 3)
-                {
-                    if (TorreA[a] == 3) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 3) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 3) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.MediumOrchid), posx, 212 - (a * 20), 56, 16);
-                }
-                if (TorreA[a] == 4 | TorreB[a] == 4 | TorreC[a] == 4)
-                {
-                    if (TorreA[a] == 4) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 4) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 4) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.Olive), posx, 212 - (a * 20), 76, 16);
-                }
-                if (TorreA[a] == 5 | TorreB[a] == 5 | TorreC[a] == 5)
-                {
-                    if (TorreA[a] == 5) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 5) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 5) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.LightSkyBlue), posx, 212 - (a * 20), 96, 16);
-                }
-                if (TorreA[a] == 6 | TorreB[a] == 6 | TorreC[a] == 6)
-                {
-                    if (TorreA[a] == 6) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 6) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 6) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.LightGoldenrodYellow), posx, 212 - (a * 20), 116, 16);
-                }
-                if (TorreA[a] == 7 | TorreB[a] == 7 | TorreC[a] == 7)
-                {
-                    if (TorreA[a] == 7) { posx = 92 - (TorreA[a] * 10); }
-                    if (TorreB[a] == 7) { posx = 252 - (TorreB[a] * 10); }
-                    if (TorreC[a] == 7) { posx = 412 - (TorreC[a] * 10); }
-                    crear.FillRectangle(new SolidBrush(Color.LightPink), posx, 212 - (a * 20), 136, 16);
-                }
-            }
-        }
-
-        //Dibuja juego
         private void panel1_Paint(object sender, PaintEventArgs e)
         {
-            if (Jugar)
-                dibuja();
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using (SolidBrush baseBrush = new SolidBrush(Color.SaddleBrown))
+            using (SolidBrush pegBrush = new SolidBrush(Color.Peru))
+            using (Pen borderPen = new Pen(Color.Black, 1.5f))
+            {
+                // Base
+                g.FillRectangle(baseBrush, 10, 230, 480, 12);
+
+                // Three pegs
+                for (int p = 0; p < 3; p++)
+                {
+                    g.FillRectangle(pegBrush, PegCentersX[p] - 5, 50, 10, 180);
+
+                    int[] disks = _engine.GetPegDisksBottomToTop(p);
+                    int drawCount = disks.Length;
+                    if (_draggingPeg == p && drawCount > 0)
+                    {
+                        drawCount--;
+                    }
+
+                    for (int i = 0; i < drawCount; i++)
+                    {
+                        int diskSize = disks[i];
+                        int width = diskSize * 20;
+                        int x = PegCentersX[p] - (width / 2);
+                        int y = 210 - (i * 20);
+                        DrawDisk(g, borderPen, diskSize, x, y, width, 18);
+                    }
+                }
+
+                // Dragging disk rendered smoothly on top
+                if (_draggingPeg >= 0)
+                {
+                    int topDisk = _engine.PeekTop(_draggingPeg);
+                    if (topDisk > 0)
+                    {
+                        int width = topDisk * 20;
+                        int x = _dragPoint.X - (width / 2);
+                        int y = _dragPoint.Y - 9;
+                        DrawDisk(g, borderPen, topDisk, x, y, width, 18);
+                    }
+                }
+            }
         }
 
-       
-        //declara el contador que lleva la cuenta del tiempo
+        private static void DrawDisk(Graphics g, Pen borderPen, int diskSize, int x, int y, int width, int height)
+        {
+            Color fill = DiskPalette[(diskSize - 1) % DiskPalette.Length];
+            using (SolidBrush brush = new SolidBrush(fill))
+            {
+                g.FillRectangle(brush, x, y, width, height);
+                g.DrawRectangle(borderPen, x, y, width, height);
+            }
+        }
+
         private void timer1_Tick(object sender, EventArgs e)
         {
-            cronos.Start();//inicia el contador
-
-            if (cronos.IsRunning)
-            {
-
-                TimeSpan ts = cronos.Elapsed;
-                this.lblIntentos3.Text = String.Format("{0:00}:{1:00}:{2:00}:{3:00}", ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
-            }
-        }
-
-        // se utiliza este boton para pausar el juego, pausando el tiempo y bloqueando los controles
-        private void button5_Click_1(object sender, EventArgs e)
-        {
-            if (comp2 == 0)
-            {
-                cronos.Stop();
-                timer1.Stop();
-                juego.Enabled = (false);
-                this.btnPausa.Text = "Continuar";//cambia el texto del boton
-                comp2++;
-
-            }
-            else if (comp2 == 1)
-            {
-                juego.Enabled = (true);
-                cronos.Start();
-                timer1.Start();
-                this.btnPausa.Text = "Pausa";//cambia el texto del boton
-                comp2--;
-            }
-        }
-
-        private void btn_demo_Click(object sender, EventArgs e)
-        {
-            validar_nivel();
-            if (cbx_nivel.Text == "")
-            {
-                MessageBox.Show("Seleccione el nivel del demo");
-            }
-
-            if (NumAnillos == 3 & cbx_nivel.Text == "Facil")
-            {
-                panel_juego.Visible = true;
-                panel_menu.Visible = false;
-                lb_nivel.Text = cbx_nivel.Text;
-                btn_salir.Visible = true;
-                cbx_nivel.Text = "";
-                demo3();
-
-            }
-            else if (NumAnillos == 6 & cbx_nivel.Text == "Medio")
-            {
-                panel_juego.Visible = true;
-                panel_menu.Visible = false;
-                btn_salir.Visible = true;
-                cbx_nivel.Text = "";
-                demo6();
-            }
-            else if (NumAnillos == 8 & cbx_nivel.Text == "Dificil")
-            {
-                panel_juego.Visible = true;
-                panel_menu.Visible = false;
-                btn_salir.Visible = true;
-                cbx_nivel.Text = "";
-                demo8();
-            }
+            TimeSpan elapsed = _cronos.Elapsed;
+            lblIntentos3.Text = string.Format("{0:00}:{1:00}", (int)elapsed.TotalMinutes, elapsed.Seconds);
         }
 
         private void btn_jugar_Click(object sender, EventArgs e)
         {
-            validar_nivel();
-            if (cbx_nivel.Text == "")
-            {
-                MessageBox.Show("Seleccione el nivel de juego");
-            }
-            else
-            {
-                juego.Show();
-                inicia_juego();
-                panel_juego.Visible = true;
-                panel_menu.Visible = false;
-                lb_nivel.Visible = true;
-                lblIntentos.Visible = true;
-                lblIntentos2.Visible = true;
-                lblIntentos3.Visible = true;
-                lblTiempo.Visible = true;
-                lb_nivel.Text = cbx_nivel.Text;
-                cbx_nivel.Text = "";
-                btn_menu.Visible = true;
-
-            }
+            StartSession(false);
         }
 
-        private void torresHanoi_KeyPress(object sender, KeyPressEventArgs e)
+        private void btn_demo_Click(object sender, EventArgs e)
         {
-            if (e.KeyChar == Convert.ToChar(Keys.Escape))
-            {
-                this.Close();
-            }
+            StartSession(true);
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            cronos.Stop();
+            _demoTimer.Stop();
             timer1.Stop();
-            var resultado = (MessageBox.Show("Desea cancelar el juego", "Advertencia", MessageBoxButtons.YesNo, MessageBoxIcon.Warning));
-            if (resultado == DialogResult.Yes)
-            {
-                panel_juego.Visible = false;
-                panel_menu.Visible = true;
-                btnPausa.Visible = false;
-                btn_menu.Visible = false;
+            _cronos.Stop();
+            _jugar = false;
+            panel_juego.Visible = false;
+            panel_menu.Visible = true;
+        }
 
-            }
-            if (resultado == DialogResult.No)
+        private void button5_Click_1(object sender, EventArgs e)
+        {
+            if (!_jugar && !_demoTimer.Enabled && !_pausado)
             {
-                cronos.Start();
+                return;
+            }
+
+            _pausado = !_pausado;
+            if (_pausado)
+            {
+                timer1.Stop();
+                _cronos.Stop();
+                _demoTimer.Stop();
+                btnPausa.Text = "Reanudar";
+            }
+            else
+            {
+                _cronos.Start();
                 timer1.Start();
+                if (!_jugar && _demoQueue.Count > 0)
+                {
+                    _demoTimer.Start();
+                }
+                btnPausa.Text = "Pausa";
             }
         }
 
         private void btn_salir_Click(object sender, EventArgs e)
         {
-            panel_juego.Visible = false;
-            btn_salir.Visible = false;
-            panel_menu.Visible = true;
-            Jugar = false;
+            this.Close();
         }
 
-        /// <summary>
-        ///Jugar, se validan las reglas para obtener el ganador del juego
-        /// </summary>
-        private void inicia_juego()
+        private void torresHanoi_KeyPress(object sender, KeyPressEventArgs e)
         {
-            this.btnPausa.Text = "Pausa";
-            label2.Visible = (true);
-            label3.Visible = (true);
-            label4.Visible = (true);
-            juego.Enabled = (true);
-            btnPausa.Visible = (true);
-            comp++;
-            this.lblIntentos3.Text = "0";
-            timer1.Start();
-            TorreA = new int[NumAnillos];
-            TorreB = new int[NumAnillos];
-            TorreC = new int[NumAnillos];
-            AnillosA = NumAnillos;
-            AnillosB = 0;
-            AnillosC = 0;
-            finalA = 1;
-            finalB = 0;
-            finalC = 0;
-            for (int a = NumAnillos, b = 0; a > 0; a--, b++)
-            { TorreA[b] = a; }
-            Intentos = 0;
-            if (comp != 0)
+            if (e.KeyChar == (char)Keys.Escape && panel_juego.Visible)
             {
-                cronos.Reset();
-            }
-            lblIntentos2.Text = Intentos.ToString();
-            Jugar = true;
-            this.Refresh();
-        }
-
-        /// <summary>
-        /// Valida lod niveles del juego
-        /// </summary>
-        private void validar_nivel()
-        {
-            if (cbx_nivel.Text == "Facil")
-            {
-                NumAnillos = 3;
-            }
-            else if (cbx_nivel.Text == "Medio")
-            {
-                NumAnillos = 6;
-            }
-            else if (cbx_nivel.Text == "Dificil")
-            {
-                NumAnillos = 8;
+                button1_Click(sender, EventArgs.Empty);
             }
         }
 
-        /// <summary>
-        /// demo de tres anillos
-        /// </summary>
-        private void demo3()
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            Jugar = true;
-            NumAnillos = 3;
-            TorreA = new int[3];
-            TorreB = new int[3];
-            TorreC = new int[3];
-            timer1.Start();
-            for (int a = NumAnillos, b = 0; a > 0; a--, b++)
-            { TorreA[b] = a; }
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 2; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 3; TorreB[0] = 0; TorreC[0] = 1;
-            lblIntentos2.Text = "1";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 3; TorreB[0] = 2; TorreC[0] = 1;
-            lblIntentos2.Text = "2";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 1; TorreC[1] = 0;
-            TorreA[0] = 3; TorreB[0] = 2; TorreC[0] = 0;
-            lblIntentos2.Text = "3";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 1; TorreC[1] = 0;
-            TorreA[0] = 0; TorreB[0] = 2; TorreC[0] = 3;
-            lblIntentos2.Text = "4";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 1; TorreB[0] = 2; TorreC[0] = 3;
-            lblIntentos2.Text = "5";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 2;
-            TorreA[0] = 1; TorreB[0] = 0; TorreC[0] = 3;
-            lblIntentos2.Text = "6";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 1;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 2;
-            TorreA[0] = 0; TorreB[0] = 0; TorreC[0] = 3;
-            lblIntentos2.Text = "7";
-            this.Refresh();
-            Jugar = false;
+            _demoTimer.Stop();
+            _demoTimer.Dispose();
             timer1.Stop();
-
-        }
-
-        /// <summary>
-        /// demo de seis anillos
-        /// </summary>
-        private void demo6()
-        {
-            btnPausa.Visible = (false);
-            Jugar = true;
-            NumAnillos = 6;
-            TorreA = new int[6];
-            TorreB = new int[6];
-            TorreC = new int[6];
-            for (int a = NumAnillos, b = 0; a > 0; a--, b++)
-            { TorreA[b] = a; }
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 1; TorreC[0] = 0;
-            lblIntentos2.Text = "1";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 1; TorreC[0] = 2;
-            lblIntentos2.Text = "2";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 0; TorreC[0] = 2;
-            lblIntentos2.Text = "3";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 2;
-            lblIntentos2.Text = "4";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 2;
-            lblIntentos2.Text = "5";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 0;
-            lblIntentos2.Text = "6";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 0;
-            lblIntentos2.Text = "7";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "8";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 2; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "9";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "9";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "10";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 0; TorreC[0] = 4;
-            lblIntentos2.Text = "11";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 1; TorreC[0] = 4;
-            lblIntentos2.Text = "12";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 1; TorreC[0] = 4;
-            lblIntentos2.Text = "13";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 1; TorreC[0] = 4;
-            lblIntentos2.Text = "14";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 5; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 0; TorreC[0] = 4;
-            lblIntentos2.Text = "15";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "16";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 1; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "17";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "18";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "19";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "20";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 2; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "21";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "22";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "23";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "24";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "25";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "26";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "27";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "28";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "29";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "30";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 1; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "31";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 1; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 6; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "32";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 1; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 0; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "33";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 0; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "34";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 2; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "35";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 2; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "36";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 2; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "37";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 2; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "38";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 2;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 0; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "39";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 0; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 0; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "40";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "41";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 1; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "42";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "43";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "44";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "45";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 2; TorreC[1] = 1;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "46";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "47";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 4; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "48";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 0; TorreC[0] = 6;
-            lblIntentos2.Text = "49";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 1; TorreC[0] = 6;
-            lblIntentos2.Text = "50";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 1; TorreC[0] = 6;
-            lblIntentos2.Text = "51";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 3; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 0; TorreC[0] = 6;
-            lblIntentos2.Text = "52";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "53";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 1; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "54";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 1; TorreB[1] = 2; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "55";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 0; TorreB[1] = 2; TorreC[1] = 5;
-            TorreA[0] = 4; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "56";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 4;
-            TorreA[1] = 0; TorreB[1] = 2; TorreC[1] = 5;
-            TorreA[0] = 0; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "57";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 0; TorreB[1] = 2; TorreC[1] = 5;
-            TorreA[0] = 0; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "58";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 2; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "58";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 1; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 2; TorreB[0] = 3; TorreC[0] = 6;
-            lblIntentos2.Text = "59";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 3;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 1; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 2; TorreB[0] = 0; TorreC[0] = 6;
-            lblIntentos2.Text = "60";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 3;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 2; TorreB[0] = 1; TorreC[0] = 6;
-            lblIntentos2.Text = "61";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 2;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 3;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 0; TorreB[0] = 1; TorreC[0] = 6;
-            lblIntentos2.Text = "62";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 1;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 2;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 3;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 4;
-            TorreA[1] = 0; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 0; TorreB[0] = 0; TorreC[0] = 6;
-            lblIntentos2.Text = "63";
-            this.Refresh();
-        }
-
-        /// <summary>
-        /// demo de ocho anillos
-        /// </summary>
-        private void demo8()
-        {
-            Jugar = true;
-            NumAnillos = 8;
-            TorreA = new int[8];
-            TorreB = new int[8];
-            TorreC = new int[8];
-            timer1.Start();
-            for (int a = NumAnillos, b = 0; a > 0; a--, b++)
-            { TorreA[b] = a; }
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 1; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 2; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 3; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 0; TorreC[0] = 0;
-            lblIntentos2.Text = "1";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 2; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 3; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 1; TorreC[0] = 0;
-            lblIntentos2.Text = "2";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 3; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 1; TorreC[0] = 2;
-            lblIntentos2.Text = "3";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 3; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 0; TorreC[0] = 2;
-            lblIntentos2.Text = "4";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 2;
-            lblIntentos2.Text = "5";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 2;
-            lblIntentos2.Text = "6";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 0;
-            lblIntentos2.Text = "7";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 4; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 0;
-            lblIntentos2.Text = "8";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "9";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "10";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "11";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 3; TorreC[0] = 4;
-            lblIntentos2.Text = "12";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 0; TorreC[0] = 4;
-            lblIntentos2.Text = "13";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 1; TorreC[0] = 4;
-            lblIntentos2.Text = "14";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 1; TorreC[0] = 4;
-            lblIntentos2.Text = "15";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 5; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 0; TorreC[0] = 4;
-            lblIntentos2.Text = "16";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "17";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "18";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "19";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "20";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "21";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "22";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "23";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 4;
-            lblIntentos2.Text = "24";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "25";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "26";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "27";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "28";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "29";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 2;
-            lblIntentos2.Text = "30";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "31";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 1; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 6; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 0;
-            lblIntentos2.Text = "32";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 1; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "33";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 2; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "34";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "35";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 3; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "36";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "37";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 2; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "38";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 0; TorreB[2] = 1; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "39";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 0; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 4; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "40";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 1;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "41";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 2;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "42";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 1; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "43";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 0; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 3;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "44";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 1; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "45";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 0; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 2; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "46";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 1;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "47";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 0;
-            TorreA[0] = 8; TorreB[0] = 5; TorreC[0] = 6;
-            lblIntentos2.Text = "48";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 1; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 8; TorreB[0] = 0; TorreC[0] = 6;
-            lblIntentos2.Text = "49";
-            this.Refresh();
-            Thread.Sleep(1000);
-            TorreA[7] = 0; TorreB[7] = 0; TorreC[7] = 0;
-            TorreA[6] = 0; TorreB[6] = 0; TorreC[6] = 0;
-            TorreA[5] = 0; TorreB[5] = 0; TorreC[5] = 0;
-            TorreA[4] = 2; TorreB[4] = 0; TorreC[4] = 0;
-            TorreA[3] = 3; TorreB[3] = 0; TorreC[3] = 0;
-            TorreA[2] = 4; TorreB[2] = 0; TorreC[2] = 0;
-            TorreA[1] = 7; TorreB[1] = 0; TorreC[1] = 5;
-            TorreA[0] = 8; TorreB[0] = 1; TorreC[0] = 6;
-            lblIntentos2.Text = "50";
-            Jugar = false;
-            timer1.Stop();
-
+            base.OnFormClosing(e);
         }
     }
 }
